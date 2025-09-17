@@ -3,8 +3,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-/// Address form with improved UI (filled inputs, rounded borders) and required validators.
-/// Functionality (wilayah cache, kodepos search, autofill) unchanged.
+/// Widget form alamat dengan:
+/// - Input jalan, RT/RW, dusun, desa, kecamatan, kabupaten, provinsi, kode pos
+/// - Autocomplete berbasis cache Firestore (wilayah)
+/// - Autofill kode pos via API eksternal & Firestore
+/// - UI lebih rapi (rounded, filled background)
 class AddressForm extends StatefulWidget {
   const AddressForm({
     super.key,
@@ -18,7 +21,7 @@ class AddressForm extends StatefulWidget {
     required this.kodePosC,
   });
 
-  // Controller untuk setiap field alamat
+  // Controller untuk field-field input (agar parent bisa ambil nilai akhir)
   final TextEditingController jalanC;
   final TextEditingController rtRwC;
   final TextEditingController dusunC;
@@ -35,25 +38,26 @@ class AddressForm extends StatefulWidget {
 class _AddressFormState extends State<AddressForm> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // Cache lokal untuk autocomplete agar tidak selalu query ke Firestore
+  // Cache lokal wilayah untuk Autocomplete (agar tidak query Firestore terus-menerus)
   final Set<String> _desaSet = {};
   final Set<String> _dusunSet = {};
   final Set<String> _kecamatanSet = {};
   final Set<String> _kabupatenSet = {};
   final Set<String> _provinsiSet = {};
 
-  bool _loadingWilayah = true; // Flag loading saat fetch cache
-  String? _wilayahError; // Menyimpan error jika gagal fetch
+  bool _loadingWilayah = true; // Indikator loading saat mengambil cache
+  String? _wilayahError;       // Menyimpan pesan error jika gagal ambil cache
 
   @override
   void initState() {
     super.initState();
-    // Ambil cache wilayah saat widget diinisialisasi
+    // Saat widget pertama kali dibuat, langsung fetch data wilayah dari Firestore
     _fetchWilayahCache();
   }
 
-  /// Fetch cache wilayah dari Firestore
-  /// Memasukkan data desa, dusun, kecamatan, kabupaten, provinsi
+  /// Ambil cache wilayah dari Firestore.
+  /// Data dimasukkan ke dalam set (desa, dusun, kecamatan, kabupaten, provinsi).
+  /// Dipakai untuk autocomplete field.
   Future<void> _fetchWilayahCache() async {
     setState(() {
       _loadingWilayah = true;
@@ -64,11 +68,11 @@ class _AddressFormState extends State<AddressForm> {
       for (final doc in snap.docs) {
         final m = doc.data();
 
-        // Tambahkan nama desa (single field)
+        // --- Desa ---
         final desa = (m['desa'] ?? '').toString().trim();
         if (desa.isNotEmpty) _desaSet.add(desa);
 
-        // Tambahkan array desa jika ada (desa_list)
+        // Jika ada field array desa_list → tambahkan semua
         final dynamic desaListField = m['desa_list'];
         if (desaListField is List) {
           for (final d in desaListField) {
@@ -77,19 +81,19 @@ class _AddressFormState extends State<AddressForm> {
           }
         }
 
-        // Kecamatan
+        // --- Kecamatan ---
         final kec = (m['kecamatan'] ?? '').toString().trim();
         if (kec.isNotEmpty) _kecamatanSet.add(kec);
 
-        // Kabupaten / regency
+        // --- Kabupaten ---
         final kab = (m['kabupaten'] ?? m['regency'] ?? '').toString().trim();
         if (kab.isNotEmpty) _kabupatenSet.add(kab);
 
-        // Provinsi
+        // --- Provinsi ---
         final prov = (m['provinsi'] ?? m['province'] ?? '').toString().trim();
         if (prov.isNotEmpty) _provinsiSet.add(prov);
 
-        // Dusun (bisa array atau string)
+        // --- Dusun (bisa array atau string dengan koma) ---
         final dynamic dusunField = m['dusun_list'] ?? m['dusun'];
         if (dusunField is List) {
           for (final d in dusunField) {
@@ -113,11 +117,11 @@ class _AddressFormState extends State<AddressForm> {
     }
   }
 
-  // -------------------------
-  // UI helpers & validators
-  // -------------------------
+  // =================================================================
+  // ====================== UI & Validator Helpers ==================
+  // =================================================================
 
-  /// Dekorasi input field dengan border, warna latar, icon, dsb
+  /// Dekorasi standar untuk input field (dengan border bulat, warna abu muda, dll)
   InputDecoration _inputDecoration({
     required String label,
     String? hint,
@@ -142,13 +146,13 @@ class _AddressFormState extends State<AddressForm> {
     );
   }
 
-  /// Validator untuk field wajib diisi
+  /// Validator field wajib → tidak boleh kosong
   String? _requiredValidator(String? v, {String? fieldName}) {
     if (v == null || v.trim().isEmpty) return '${fieldName ?? 'Field'} wajib diisi';
     return null;
   }
 
-  /// Build field input dengan validator wajib
+  /// Builder untuk field input biasa (bukan autocomplete)
   Widget _buildField({
     required String label,
     required TextEditingController controller,
@@ -464,6 +468,7 @@ class _AddressFormState extends State<AddressForm> {
   }
 
   /// Apply data doc wilayah ke field alamat
+  /// NOTE: sekarang menulis (overwrite) langsung ke controller agar memastikan field terisi
   void _applyWilayahDocToFields(Map<String, dynamic> d) {
     final code = (d['kodePos'] ?? d['code'] ?? d['kodepos'] ?? d['id'] ?? '').toString();
     final desa = (d['desa'] ?? '').toString();
@@ -475,10 +480,83 @@ class _AddressFormState extends State<AddressForm> {
       widget.kodePosC.text = code;
       print('Autofill kodePos: $code (from doc)');
     }
-    if (widget.desaC.text.trim().isEmpty && desa.isNotEmpty) widget.desaC.text = desa;
-    if (widget.kecamatanC.text.trim().isEmpty && kec.isNotEmpty) widget.kecamatanC.text = kec;
-    if (widget.kabupatenC.text.trim().isEmpty && kab.isNotEmpty) widget.kabupatenC.text = kab;
-    if (widget.provinsiC.text.trim().isEmpty && prov.isNotEmpty) widget.provinsiC.text = prov;
+    // overwrite agar saat dokumen valid, field pasti terisi
+    if (desa.isNotEmpty) widget.desaC.text = desa;
+    if (kec.isNotEmpty) widget.kecamatanC.text = kec;
+    if (kab.isNotEmpty) widget.kabupatenC.text = kab;
+    if (prov.isNotEmpty) widget.provinsiC.text = prov;
+  }
+
+  // -------------------------
+  // New: Autofill specifically when dusun dipilih
+  // -------------------------
+
+  /// Coba autofill berdasarkan nama dusun yang dipilih.
+  /// Strategi:
+  /// 1) Query `where('dusun_list', arrayContains: dusun)` (apabila field disimpan sebagai array)
+  /// 2) Jika tidak ditemukan, ambil beberapa dokumen dan lakukan pemeriksaan client-side terhadap `dusun_list` atau `dusun` (string)
+  /// 3) Jika ditemukan, apply ke fields; jika tidak, fallback ke _tryAutoFillPostal()
+  Future<void> _autoFillByDusun(String dusun) async {
+    final trimmed = dusun.trim();
+    if (trimmed.isEmpty) return;
+
+    try {
+      // Pastikan dusun controller diisi
+      widget.dusunC.text = trimmed;
+
+      // 1) coba query arrayContains
+      try {
+        final qSnap = await _db.collection('wilayah').where('dusun_list', arrayContains: trimmed).limit(1).get();
+        if (qSnap.docs.isNotEmpty) {
+          final d = qSnap.docs.first.data();
+          _applyWilayahDocToFields(d);
+          final desa = (d['desa'] ?? '').toString();
+          if (desa.isNotEmpty) widget.desaC.text = desa;
+          print('Found by arrayContains for dusun: $trimmed');
+          return;
+        }
+      } catch (e) {
+        // query bisa gagal jika field bukan array di beberapa struktur, lanjut ke fallback
+        print('arrayContains query failed or returned nothing: $e');
+      }
+
+      // 2) Fallback: ambil beberapa dokumen (mis. yang provinsi/kabupaten sama jika ada cache),
+      // tapi untuk general case ambil seluruh koleksi terbatas (mis. 200) agar tidak OOM
+      final snap = await _db.collection('wilayah').limit(200).get();
+      Map<String, dynamic>? found;
+      for (final doc in snap.docs) {
+        final d = doc.data();
+        final docDusunList = d['dusun_list'] ?? d['dusun'];
+        if (docDusunList is List) {
+          for (final x in docDusunList) {
+            if (x?.toString().toLowerCase() == trimmed.toLowerCase()) {
+              found = d;
+              break;
+            }
+          }
+        } else if (docDusunList is String) {
+          if (docDusunList.toString().toLowerCase().contains(trimmed.toLowerCase())) {
+            found = d;
+          }
+        }
+        if (found != null) break;
+      }
+
+      if (found != null) {
+        _applyWilayahDocToFields(found);
+        final desa = (found['desa'] ?? '').toString();
+        if (desa.isNotEmpty) widget.desaC.text = desa;
+        print('Found by client-side scan for dusun: $trimmed');
+        return;
+      }
+
+      // 3) jika tetap tidak ditemukan, coba strategi umum berdasarkan isi dusun (panggil fungsi umum)
+      await _tryAutoFillPostal();
+    } catch (e, st) {
+      print('Error autofill by dusun: $e\n$st');
+      // fallback ke fungsi umum
+      await _tryAutoFillPostal();
+    }
   }
 
   // -------------------------
@@ -502,8 +580,18 @@ class _AddressFormState extends State<AddressForm> {
         },
         displayStringForOption: (option) => option,
         onSelected: (selection) async {
+          // pastikan controller dan widget controller di-set
           controller.text = selection;
-          await _tryAutoFillPostal();
+          // Jika field yang dipilih adalah 'dusun', pakai metode khusus agar
+          // desa/kecamatan/kabupaten/provinsi/kodepos otomatis terisi berdasarkan dusun.
+          if (fieldType.toLowerCase() == 'dusun') {
+            widget.dusunC.text = selection;
+            await _autoFillByDusun(selection);
+          } else {
+            // Untuk field selain dusun, gunakan mekanisme umum yang sudah ada
+            await _tryAutoFillPostal();
+          }
+          if (mounted) setState(() {});
         },
         fieldViewBuilder: (context, textController, focusNode, onFieldSubmitted) {
           textController.text = controller.text;
