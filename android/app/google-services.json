@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "906029014724",
+    "project_id": "project-4-22346",
+    "storage_bucket": "project-4-22346.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:906029014724:android:ac648159fc82dd54a8f391",
+        "android_client_info": {
+          "package_name": "com.yuga.project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6wqxzezeoLJB1lCCUnNFnvCiZofpTZTo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

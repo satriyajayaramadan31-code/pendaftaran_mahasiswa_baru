@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
-import 'pages/student_form_page.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'pages/student_list_page.dart';
+import 'package:registrasi_siswa/firebase_option.dart'; // jika kamu pakai flutterfire configure
 
-void main() {
-  runApp(const MyApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized(); 
+  // Pastikan Flutter binding sudah diinisialisasi sebelum menggunakan async/await atau plugin
+
+  // jika kamu pakai flutterfire configure, gunakan initializeApp dengan options
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform, // konfigurasi Firebase sesuai platform
+  );
+
+  runApp(const MyApp()); // jalankan aplikasi Flutter
 }
 
 class MyApp extends StatelessWidget {
@@ -10,49 +20,29 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = ThemeData.light();
+    final base = ThemeData.light(); // gunakan tema dasar light
+    // modifikasi color scheme primary dan secondary
     final colorScheme = base.colorScheme.copyWith(
-      primary: Colors.indigo,
-      secondary: Colors.teal,
+      primary: Colors.indigo, 
+      secondary: Colors.teal
     );
 
     return MaterialApp(
-      title: 'Pendaftaran Siswa',
-      debugShowCheckedModeBanner: false,
+      debugShowCheckedModeBanner: false, // hilangkan banner debug
+      title: 'Registrasi Siswa', // judul aplikasi
       theme: base.copyWith(
-        colorScheme: colorScheme,
-        primaryColor: colorScheme.primary,
-        scaffoldBackgroundColor: const Color(0xFFF6F8FB),
-        appBarTheme: AppBarTheme(
-          backgroundColor: colorScheme.primary,
-          foregroundColor: Colors.white,
-          elevation: 2,
-          centerTitle: true,
-          titleTextStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
-        cardTheme: CardThemeData(
-          elevation: 2,
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-            textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        colorScheme: colorScheme, // terapkan color scheme
+        scaffoldBackgroundColor: const Color(0xFFF6F8FB), // warna background scaffold
+        inputDecorationTheme: const InputDecorationTheme(
+          filled: true, 
+          fillColor: Colors.white, // warna background input field
+          contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 12), // padding dalam field
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(10)), // border melengkung
           ),
         ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-          labelStyle: const TextStyle(fontWeight: FontWeight.w500),
-        ),
-        dividerColor: Colors.grey.shade300,
       ),
-      home: const StudentFormPage(),
+      home: const StudentListPage(), // halaman utama aplikasi
     );
   }
 }
