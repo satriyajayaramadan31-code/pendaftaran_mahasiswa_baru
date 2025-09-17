@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'pages/student_list_page.dart';
+import 'pages/splash_screen.dart';
 import 'package:registrasi_siswa/firebase_option.dart'; // jika kamu pakai flutterfire configure
 
 void main() async {
@@ -42,7 +43,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const StudentListPage(), // halaman utama aplikasi
+      home: const SplashScreen(), // halaman utama aplikasi
     );
   }
 }
